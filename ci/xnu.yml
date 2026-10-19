@@ -1,0 +1,74 @@
+# Build xnu-8796 (iOS 16 era) for the OnePlus 13 (dodge, SM8750) from source,
+# via blacktop/darwin-xnu-build on GitHub macOS runners.
+#
+# Our own workflow. The darwin-xnu-build invocation mechanics (macos-14 for the
+# Xcode-15 iig ABI, copying extra patches into the build's patch dir, adding
+# plain arm64 to VALID_ARCHS for a non-arm64e board, -k to collect all errors)
+# follow the approach demonstrated by dipa-studio/ios-sweet — credit to them.
+name: xnu
+on:
+  workflow_dispatch:
+    inputs:
+      macos_version: { description: "macOS release (13.5 = xnu-8796)", default: "13.5" }
+      kernel_config: { description: "RELEASE / DEVELOPMENT / DEBUG", default: "DEVELOPMENT" }
+      machine_config: { description: "xnu MACHINE_CONFIG", default: "DODGE" }
+      keep_going: { description: "make -k (collect all errors in one run)", default: "true" }
+  push:
+    branches: [main]
+    paths: ["patches/**", ".github/workflows/xnu.yml"]
+concurrency: { group: "xnu-${{ github.ref }}", cancel-in-progress: true }
+env:
+  DXB_REPO: https://github.com/blacktop/darwin-xnu-build
+  DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
+  MACOS_VERSION: ${{ inputs.macos_version || '13.5' }}
+  KERNEL_CONFIG: ${{ inputs.kernel_config || 'DEVELOPMENT' }}
+  MACHINE_CONFIG: ${{ inputs.machine_config || 'DODGE' }}
+jobs:
+  build:
+    runs-on: macos-14   # Xcode 15.x iig matches the xnu-8796 IORPC ABI
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch darwin-xnu-build
+        run: |
+          git init -q dxb
+          git -C dxb fetch -q --depth 1 "$DXB_REPO" "$DXB_SHA"
+          git -C dxb checkout -q FETCH_HEAD
+          # 12.5-14.3 use the top-level patches dir; drop ours there
+          cp patches/*.patch dxb/patches/ 2>/dev/null || true
+          cp patches/*.sh    dxb/patches/ 2>/dev/null || true
+          # libfirehose_kernel is arm64e-only upstream; DODGE is plain arm64
+          sed -i '' 's/ARCHS="x86_64 arm64e" VALID_ARCHS="x86_64 arm64e"/ARCHS="x86_64 arm64e arm64" VALID_ARCHS="x86_64 arm64e arm64"/' dxb/build.sh || true
+          ls dxb/patches
+      - name: Deps
+        run: |
+          brew install jq gum bash cmake ninja
+          printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
+          sudo chmod +x /usr/local/bin/xcodes
+          XC=$(ls -d /Applications/Xcode_*.app | sort -V | head -1)
+          echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
+          sudo xcode-select -s "$XC"; xcodebuild -version; xcrun --find iig
+      - name: Build
+        working-directory: dxb
+        env: { MAKEFLAGS: "${{ inputs.keep_going == 'false' && '' || '-k' }}" }
+        run: bash build.sh
+      - name: Package build tree (for local single-file recompiles)
+        if: always()
+        run: |
+          tar czf buildtree.tgz --exclude='*.o' --exclude='*.a' --exclude='*.dSYM' \
+            --exclude='kernel.development.*' --exclude='.git' \
+            -C dxb build/xnu.obj fakeroot/usr/local/include xnu || true
+          ls -la buildtree.tgz || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: xnu-buildtree, path: buildtree.tgz, retention-days: 7 }
+      - name: Collect kernel
+        if: always()
+        run: |
+          mkdir -p out
+          cp -R dxb/fakeroot/System/Library/Kernels/. out/ 2>/dev/null || true
+          (cd out && shasum -a 256 kernel.* > SHA256SUMS) 2>/dev/null || true
+          ls -la out || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: xnu-kernel, path: out/, if-no-files-found: warn }
