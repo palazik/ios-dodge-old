@@ -1,4 +1,4 @@
-From 3332c0411f5027c2c56abc66240415436c182c4c Mon Sep 17 00:00:00 2001
+From 13ec22faf213477487fa96f9c06d20dcc80c46e2 Mon Sep 17 00:00:00 2001
 From: palazik <gochmyradov0@gmail.com>
 Date: Mon, 19 Oct 2026 15:15:55 +0500
 Subject: [PATCH] dodge: add OnePlus 13 (SM8750) board config
@@ -22,14 +22,15 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
  config/MASTER.arm64.dodge            | 108 +++++++++++++++++++++++++++
  makedefs/MakeInc.def                 |   5 +-
  pexpert/pexpert/arm64/DODGE.h        |  80 ++++++++++++++++++++
+ pexpert/pexpert/arm64/Makefile       |   3 +-
  pexpert/pexpert/arm64/board_config.h |  12 +++
- 4 files changed, 204 insertions(+), 1 deletion(-)
+ 5 files changed, 206 insertions(+), 2 deletions(-)
  create mode 100644 config/MASTER.arm64.dodge
  create mode 100644 pexpert/pexpert/arm64/DODGE.h
 
 diff --git a/config/MASTER.arm64.dodge b/config/MASTER.arm64.dodge
 new file mode 100644
-index 0000000..85a78a2
+index 0000000..f3ba5bf
 --- /dev/null
 +++ b/config/MASTER.arm64.dodge
 @@ -0,0 +1,108 @@
@@ -88,7 +89,7 @@ index 0000000..85a78a2
 +#  LIBKERN_RELEASE =[ LIBKERN_BASE zlib ]
 +#  LIBKERN_DEV =    [ LIBKERN_BASE zlib iotracking ]
 +#  LIBKERN_DEBUG =  [ LIBKERN_BASE zlib iotracking ]
-+#  PERF_DBG_BASE =  [ config_dtrace mach_kdp config_serial_kdp kdp_interactive_debugging config_kdp_coredump_encryption config_pervasive_energy PERFMON_BASE kperf ]
++#  PERF_DBG_BASE =  [ config_dtrace mach_kdp config_serial_kdp kdp_interactive_debugging config_kdp_coredump_encryption config_pervasive_energy PERFMON_BASE kperf kpc ]
 +#  PERF_DBG_RELEASE=[ PERF_DBG_BASE ist_kdebug ]
 +#  PERF_DBG_DEV =   [ PERF_DBG_BASE lock_stats zleaks alternate_debugger sched_hygiene_debug config_debug_syscall_rejection config_iotrace ]
 +#  PERF_DBG_DEBUG = [ PERF_DBG_BASE lock_stats zleaks alternate_debugger sched_hygiene_debug config_debug_syscall_rejection config_iotrace ]
@@ -259,6 +260,20 @@ index 0000000..b44aa51
 +#endif /* ! ASSEMBLER */
 +
 +#endif /* ! _PEXPERT_ARM64_DODGE_H */
+diff --git a/pexpert/pexpert/arm64/Makefile b/pexpert/pexpert/arm64/Makefile
+index 8226b8c..2c8473d 100644
+--- a/pexpert/pexpert/arm64/Makefile
++++ b/pexpert/pexpert/arm64/Makefile
+@@ -17,7 +17,8 @@ PRIVATE_KERNELFILES = \
+ 	boot.h \
+ 	H13.h \
+ 	VMAPPLE.h \
+-	BCM2837.h
++	BCM2837.h \
++	DODGE.h
+ 
+ 
+ # Headers installed into System.framework/PrivateHeaders (userspace internal SDK only).
 diff --git a/pexpert/pexpert/arm64/board_config.h b/pexpert/pexpert/arm64/board_config.h
 index 9454534..f2b9425 100644
 --- a/pexpert/pexpert/arm64/board_config.h
