@@ -1,0 +1,98 @@
+From 363014194a0f62d808202b3217edd59d75f6d869 Mon Sep 17 00:00:00 2001
+From: palazik <gochmyradov0@gmail.com>
+Date: Mon, 19 Oct 2026 16:54:35 +0500
+Subject: [PATCH] dodge: open-build fixes (proc_reg, pmap reserved10, SMP path,
+ IOMMU stubs)
+
+Second CI build (DODGE.h now exported) surfaced four open-build gaps; fix them:
+ - osfmk/arm64/proc_reg.h: DODGE shares VMAPPLE's cache-line branch (was
+   "#error processor not supported").
+ - osfmk/arm/pmap/pmap.h: rename the !HAS_APPLE_PAC reserved10 (duplicate member).
+ - board_config.h: drop USE_APPLEARMSMP for DODGE -> use the legacy IOCPU+PSCI
+   bring-up path (no Apple CPU PIO regs, CPU_PIO_CPU_STS_*).
+ - osfmk/arm64/ppl/{sart,uat}.h: stub headers with no-op *_bootstrap() (the
+   NVMe-SART and GPU-UAT IOMMUs do not exist on SM8750; pmap.c calls them).
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ osfmk/arm/pmap/pmap.h                | 2 +-
+ osfmk/arm64/ppl/sart.h               | 9 +++++++++
+ osfmk/arm64/ppl/uat.h                | 9 +++++++++
+ osfmk/arm64/proc_reg.h               | 2 +-
+ pexpert/pexpert/arm64/board_config.h | 2 --
+ 5 files changed, 20 insertions(+), 4 deletions(-)
+ create mode 100644 osfmk/arm64/ppl/sart.h
+ create mode 100644 osfmk/arm64/ppl/uat.h
+
+diff --git a/osfmk/arm/pmap/pmap.h b/osfmk/arm/pmap/pmap.h
+index df672c6..92691d7 100644
+--- a/osfmk/arm/pmap/pmap.h
++++ b/osfmk/arm/pmap/pmap.h
+@@ -442,7 +442,7 @@ struct pmap {
+ #if HAS_APPLE_PAC
+ 	bool disable_jop;
+ #else
+-	bool reserved10;
++	bool reserved10b;
+ #endif /* HAS_APPLE_PAC */
+ 
+ 	bool reserved11;
+diff --git a/osfmk/arm64/ppl/sart.h b/osfmk/arm64/ppl/sart.h
+new file mode 100644
+index 0000000..90573fb
+--- /dev/null
++++ b/osfmk/arm64/ppl/sart.h
+@@ -0,0 +1,9 @@
++/*
++ * Stub for the OnePlus 13 (dodge) open build: the SART (NVMe scatter-gather)
++ * and UAT (GPU) IOMMUs do not exist on SM8750. pmap.c calls *_bootstrap()
++ * unconditionally; make them no-ops. Our own file for the from-source port.
++ */
++#ifndef _ARM64_PPL_SART_H
++#define _ARM64_PPL_SART_H
++static inline void sart_bootstrap(void) { }
++#endif
+diff --git a/osfmk/arm64/ppl/uat.h b/osfmk/arm64/ppl/uat.h
+new file mode 100644
+index 0000000..6e0fc68
+--- /dev/null
++++ b/osfmk/arm64/ppl/uat.h
+@@ -0,0 +1,9 @@
++/*
++ * Stub for the OnePlus 13 (dodge) open build: the SART (NVMe scatter-gather)
++ * and UAT (GPU) IOMMUs do not exist on SM8750. pmap.c calls *_bootstrap()
++ * unconditionally; make them no-ops. Our own file for the from-source port.
++ */
++#ifndef _ARM64_PPL_UAT_H
++#define _ARM64_PPL_UAT_H
++static inline void uat_bootstrap(void) { }
++#endif
+diff --git a/osfmk/arm64/proc_reg.h b/osfmk/arm64/proc_reg.h
+index 133b07f..c19f21b 100644
+--- a/osfmk/arm64/proc_reg.h
++++ b/osfmk/arm64/proc_reg.h
+@@ -213,7 +213,7 @@
+ /* D-Cache. */
+ #define MMU_CLINE   6
+ 
+-#elif defined (VMAPPLE)
++#elif defined (VMAPPLE) || defined (DODGE)
+ 
+ /* I-Cache. */
+ #define MMU_I_CLINE 6
+diff --git a/pexpert/pexpert/arm64/board_config.h b/pexpert/pexpert/arm64/board_config.h
+index f2b9425..6f8ce6d 100644
+--- a/pexpert/pexpert/arm64/board_config.h
++++ b/pexpert/pexpert/arm64/board_config.h
+@@ -105,8 +105,6 @@
+ #define MAX_CPU_CLUSTERS               2
+ 
+ #define CORE_NCTRS                     8 /* placeholder; KPC not enabled on this target */
+-
+-#define USE_APPLEARMSMP                1
+ #endif  /* ARM64_BOARD_CONFIG_DODGE */
+ 
+ #ifdef ARM64_BOARD_CONFIG_VMAPPLE
+-- 
+2.55.0
+
